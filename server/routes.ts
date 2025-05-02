@@ -150,14 +150,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log('Received chat message:', message);
       
-      // Create a user message in storage
-      const userMessage = insertChatMessageSchema.parse({
-        role: 'user',
-        content: message
-      });
-      
-      await storage.createChatMessage(userMessage);
-      
       // Prepare the prompt for the HR assistant
       const prompt = `As an HR assistant, please answer this question: ${message}`;
       
@@ -179,7 +171,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requestData = {
         inputs: prompt,
         parameters: {
-          max_length: 200,
           temperature: 0.7,
           top_p: 0.9,
           do_sample: true
@@ -189,64 +180,59 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Log the raw API request for debugging
       console.log('Raw API request:', JSON.stringify(requestData, null, 2));
       
-      const response = await axios.post(apiUrl, requestData, {
-        headers: {
-          'Authorization': `Bearer ${hfToken}`,
-          'Content-Type': 'application/json'
+      try {
+        const response = await axios.post(apiUrl, requestData, {
+          headers: {
+            'Authorization': `Bearer ${hfToken}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000, // 30 second timeout
+          validateStatus: (status) => status >= 200 && status < 300
+        });
+
+        // Log the raw API response for debugging
+        console.log('Raw API response:', JSON.stringify(response.data, null, 2));
+
+        // Create an assistant message in storage
+        const message = insertChatMessageSchema.parse({
+          role: 'assistant',
+          content: response.data[0]?.generated_text || 'I apologize, but I could not generate a response at this time.'
+        });
+
+        const savedMessage = await storage.createChatMessage(message);
+
+        // Return successful response
+        res.status(200).json({
+          message: savedMessage,
+          success: true,
+          model: 'distilgpt2'
+        });
+
+      } catch (error) {
+        console.error('HuggingFace API error:', error);
+        if (axios.isAxiosError(error)) {
+          console.error('Axios error details:', {
+            status: error.response?.status,
+            statusText: error.response?.statusText,
+            data: error.response?.data,
+            headers: error.response?.headers
+          });
         }
-      });
-      
-      // Log the raw API response for debugging
-      console.log('Raw API response:', JSON.stringify(response.data, null, 2));
-      
-      // Process the response
-      let assistantResponse = '';
-      
-      if (response.data && Array.isArray(response.data) && response.data.length > 0) {
-        assistantResponse = response.data[0].generated_text || '';
-      } else if (response.data && response.data.generated_text) {
-        assistantResponse = response.data.generated_text;
-      } else {
-        assistantResponse = 'I apologize, but I could not generate a response at this time.';
+
+        // Create an error message in storage
+        const errorMessage = insertChatMessageSchema.parse({
+          role: 'assistant',
+          content: 'I apologize, but I encountered an error processing your request.'
+        });
+
+        const savedErrorMessage = await storage.createChatMessage(errorMessage);
+
+        res.status(500).json({
+          message: savedErrorMessage,
+          error: error.message,
+          success: false
+        });
       }
-      
-      // Clean up the response from the model
-      // First, remove the original prompt
-      if (assistantResponse.startsWith(prompt)) {
-        assistantResponse = assistantResponse.substring(prompt.length).trim();
-      }
-      
-      // Clean up common patterns in distilgpt2 responses
-      // Remove multiple consecutive newlines
-      assistantResponse = assistantResponse.replace(/\n{2,}/g, '\n\n');
-      
-      // If the response is empty or just whitespace after cleaning, provide a fallback
-      if (!assistantResponse.trim()) {
-        assistantResponse = "I understand your question. As an HR assistant, I'll do my best to help with your inquiry.";
-      }
-      
-      // Limit response length to avoid extremely long outputs
-      if (assistantResponse.length > 500) {
-        assistantResponse = assistantResponse.substring(0, 500) + "...";
-      }
-      
-      // Create an assistant message in storage
-      const assistantMessage = insertChatMessageSchema.parse({
-        role: 'assistant',
-        content: assistantResponse
-      });
-      
-      const savedAssistantMessage = await storage.createChatMessage(assistantMessage);
-      
-      // Return successful response with the assistant's message
-      res.status(200).json({
-        message: savedAssistantMessage,
-        raw_response: response.data,
-        success: true,
-        generated_text: assistantResponse,
-        model: 'distilgpt2'
-      });
-      
     } catch (error: any) {
       console.error('Chat API error:', error);
       

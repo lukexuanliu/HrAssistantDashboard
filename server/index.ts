@@ -1,6 +1,19 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import * as dotenv from 'dotenv';
+
+// Load environment variables from .env file
+dotenv.config({ path: '.env' });
+
+// Verify required environment variables
+const requiredEnvVars = ['HUGGINGFACE_API_TOKEN'];
+const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
+
+if (missingEnvVars.length > 0) {
+    console.error('Missing required environment variables:', missingEnvVars);
+    process.exit(1);
+}
 
 const app = express();
 app.use(express.json());
@@ -56,15 +69,19 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on port 5000
+  // Serve the app on port 8080
   // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = 5000;
+  const port = 8080;
   server.listen({
     port,
-    host: "0.0.0.0",
-    reusePort: true,
+    host: "localhost",
+    reusePort: false,
   }, () => {
     log(`serving on port ${port}`);
+  }).on('error', (error: any) => {
+    if (error.code === 'EADDRINUSE') {
+      console.error(`Port ${port} is already in use. Please stop any other processes using this port.`);
+      process.exit(1);
+    }
   });
 })();

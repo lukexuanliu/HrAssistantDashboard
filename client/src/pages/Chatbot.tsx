@@ -102,13 +102,13 @@ export default function Chatbot() {
       if (response && response.success) {
         const assistantMessage: ChatMessageType = {
           role: "assistant",
-          content: response.generated_text,
+          content: response.message.content,
           timestamp: new Date(),
         };
         
         setMessages((prev) => [...prev, assistantMessage]);
       } else {
-        throw new Error(response?.error || "Failed to get response from AI");
+        throw new Error(response?.error?.message || "Failed to get response from AI");
       }
     } catch (error) {
       console.error("Chat API error:", error);

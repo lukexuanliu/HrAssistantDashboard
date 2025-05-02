@@ -191,47 +191,149 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
 
         // Log the raw API response for debugging
-        console.log('Raw API response:', JSON.stringify(response.data, null, 2));
+        console.log('Raw API response from HuggingFace:', JSON.stringify(response.data, null, 2));
+        
+        // Log the exact structure of the response
+        console.log('API response type:', typeof response.data);
+        console.log('API response keys:', Object.keys(response.data));
+        
+        // Log the raw data before any processing
+        console.log('Raw data structure:', {
+          isArray: Array.isArray(response.data),
+          hasGeneratedText: 'generated_text' in response.data,
+          hasContent: 'content' in response.data,
+          firstElement: Array.isArray(response.data) ? {
+            hasGeneratedText: 'generated_text' in response.data[0],
+            hasContent: 'content' in response.data[0]
+          } : undefined
+        });
+        
+        // Try different ways to get the content
+        let content = '';
+        if (Array.isArray(response.data)) {
+          // Try array format
+          content = response.data[0]?.generated_text || response.data[0]?.content || '';
+          console.log('Using array format:', {
+            generatedText: response.data[0]?.generated_text,
+            content: response.data[0]?.content,
+            finalContent: content
+          });
+        } else {
+          // Try direct object format
+          content = response.data.generated_text || response.data.content || '';
+          console.log('Using direct object format:', {
+            generatedText: response.data.generated_text,
+            content: response.data.content,
+            finalContent: content
+          });
+        }
 
         // Create an assistant message in storage
         const message = insertChatMessageSchema.parse({
           role: 'assistant',
-          content: response.data[0]?.generated_text || 'I apologize, but I could not generate a response at this time.'
+          content: content || 'I apologize, but I could not generate a response at this time.'
         });
 
         const savedMessage = await storage.createChatMessage(message);
 
-        // Return successful response
+        // Return successful response with the content
         res.status(200).json({
-          message: savedMessage,
+          message: {
+            ...savedMessage,
+            content: savedMessage.content // Ensure content is explicitly included
+          },
           success: true,
           model: 'distilgpt2'
         });
 
-      } catch (error) {
-        console.error('HuggingFace API error:', error);
+      } catch (error: unknown) {
+        interface ErrorResponse {
+          status?: number;
+          statusText?: string;
+          data?: any;
+          headers?: any;
+        }
+
+        interface ErrorDetails {
+          message: string;
+          type: string;
+          timestamp: string;
+          requestDetails: {
+            url: string;
+            method: string;
+            headers: Record<string, string>;
+          };
+          response?: ErrorResponse;
+        }
+
+        const errorDetails: ErrorDetails = {
+          message: error instanceof Error ? error.message : 'An unknown error occurred',
+          type: error instanceof Error ? error.name : 'UnknownError',
+          timestamp: new Date().toISOString(),
+          requestDetails: {
+            url: apiUrl,
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer [REDACTED]' // Redact token for security
+            }
+          }
+        };
+
         if (axios.isAxiosError(error)) {
-          console.error('Axios error details:', {
+          errorDetails.response = {
             status: error.response?.status,
             statusText: error.response?.statusText,
             data: error.response?.data,
             headers: error.response?.headers
-          });
+          };
+
+          // Handle specific error cases
+          if (error.response?.status === 401) {
+            errorDetails.message = 'Authentication failed. Please check your HuggingFace API token.';
+          } else if (error.response?.status === 429) {
+            errorDetails.message = 'Rate limit exceeded. Please wait a moment before trying again.';
+          } else if (error.response?.status === 503) {
+            errorDetails.message = 'HuggingFace service is currently unavailable. Please try again later.';
+          }
         }
 
         // Create an error message in storage
         const errorMessage = insertChatMessageSchema.parse({
           role: 'assistant',
-          content: 'I apologize, but I encountered an error processing your request.'
+          content: errorDetails.message
         });
 
         const savedErrorMessage = await storage.createChatMessage(errorMessage);
 
-        res.status(500).json({
-          message: savedErrorMessage,
-          error: error.message,
-          success: false
+        // Return error response with debug information
+        res.status(errorDetails.response?.status || 500).json({
+          success: false,
+          error: {
+            message: errorDetails.message,
+            type: errorDetails.type,
+            timestamp: errorDetails.timestamp,
+            requestDetails: errorDetails.requestDetails,
+            responseDetails: errorDetails.response
+          },
+          model: 'distilgpt2'
         });
+
+        // Log the error with detailed information
+        console.error('HuggingFace API error:', errorDetails);
+
+        // Detailed error logging
+        if (axios.isAxiosError(error)) {
+          if (error.response) {
+            console.error('API Error Response Data:', error.response.data);
+            console.error('API Error Response Status:', error.response.status);
+            console.error('API Error Response Headers:', error.response.headers);
+          } else if (error.request) {
+            console.error('API Error Request:', error.request);
+          } else {
+            console.error('API Error Message:', error.message);
+          }
+        }
       }
     } catch (error: any) {
       console.error('Chat API error:', error);

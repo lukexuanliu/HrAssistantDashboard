@@ -1,0 +1,61 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Production
+/build
+/dist
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+*.log
+
+# IDE
+.DS_Store
+.idea/
+*.swp
+*.swo
+
+# Local development
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Database
+*.sqlite3
+
+# Build output
+*.tar.gz
+*.zip
+
+# Python server
+python_server/*.pyc
+python_server/__pycache__/
+python_server/*.log
+
+# Uploads
+uploads/*
+!uploads/.gitkeep

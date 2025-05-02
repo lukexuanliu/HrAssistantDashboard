@@ -139,33 +139,21 @@ export default function Chatbot() {
             messages.map((msg, index) => (
               <div
                 key={index}
-                className={`flex ${
-                  msg.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 <div
-                  className={`flex items-start max-w-[80%] ${
-                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
-                  }`}
+                  className={`flex items-start max-w-[90%]`}
                 >
-                  <Avatar className={`h-8 w-8 ${
-                    msg.role === "user" ? "ml-2" : "mr-2"
-                  }`}>
-                    <div className={`h-full w-full rounded-full ${
-                      msg.role === "user" ? "bg-blue-500" : "bg-green-500"
-                    } flex items-center justify-center text-white text-xs font-bold`}>
+                  <Avatar className={`h-8 w-8 shrink-0 ${msg.role === "user" ? "ml-2 order-2" : "mr-2 order-1"}`}>
+                    <div className={`h-full w-full rounded-full ${msg.role === "user" ? "bg-blue-500" : "bg-green-500"} flex items-center justify-center text-white text-xs font-bold`}>
                       {msg.role === "user" ? "U" : "AI"}
                     </div>
                   </Avatar>
                   <div
-                    className={`p-3 rounded-lg ${
-                      msg.role === "user"
-                        ? "bg-blue-500 text-white"
-                        : "bg-white border border-gray-200"
-                    }`}
+                    className={`p-3 rounded-lg order-${msg.role === 'user' ? '1' : '2'} ${msg.role === "user" ? "bg-blue-500 text-white" : "bg-white border border-gray-200"}`}
                   >
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                    <p className="text-xs mt-1 opacity-70">
+                    <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                    <p className="text-xs mt-1 opacity-70 text-right">
                       {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : ""}
                     </p>
                   </div>
@@ -183,22 +171,22 @@ export default function Chatbot() {
           <summary className="cursor-pointer text-sm font-medium text-gray-700">
             Debug Information
           </summary>
-          <div className="mt-2 text-xs bg-black text-green-400 p-3 rounded overflow-auto max-h-60">
-            <div className="grid grid-cols-2 gap-2">
+          <div className="mt-2 text-xs bg-black text-green-400 p-3 rounded overflow-auto max-h-60 font-mono">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <h3 className="text-white font-bold mb-1">Latest Message</h3>
-                <pre>
-                  {messages.length > 0 
-                    ? JSON.stringify(messages[messages.length - 1], null, 2) 
-                    : "No messages yet"}
+                <h3 className="text-white font-bold mb-1 border-b border-gray-600 pb-1">Latest API Request Sent</h3>
+                <pre className="mt-1">
+                  {debugData?.requestBody 
+                    ? JSON.stringify(debugData.requestBody, null, 2) 
+                    : "No request sent yet"}
                 </pre>
               </div>
               <div>
-                <h3 className="text-white font-bold mb-1">API Details</h3>
-                <pre>
-                  {debugData 
-                    ? JSON.stringify(debugData, null, 2)
-                    : "No API calls yet"}
+                <h3 className="text-white font-bold mb-1 border-b border-gray-600 pb-1">Latest API Response Received</h3>
+                <pre className="mt-1">
+                  {debugData?.responseBody 
+                    ? JSON.stringify(debugData.responseBody, null, 2)
+                    : "No response received yet"}
                 </pre>
               </div>
             </div>

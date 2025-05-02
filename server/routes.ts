@@ -209,29 +209,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         // Try different ways to get the content
-        let content = '';
+        let rawContent = '';
         if (Array.isArray(response.data)) {
           // Try array format
-          content = response.data[0]?.generated_text || response.data[0]?.content || '';
+          rawContent = response.data[0]?.generated_text || response.data[0]?.content || '';
           console.log('Using array format:', {
             generatedText: response.data[0]?.generated_text,
             content: response.data[0]?.content,
-            finalContent: content
+            finalContent: rawContent
           });
         } else {
           // Try direct object format
-          content = response.data.generated_text || response.data.content || '';
+          rawContent = response.data.generated_text || response.data.content || '';
           console.log('Using direct object format:', {
             generatedText: response.data.generated_text,
             content: response.data.content,
-            finalContent: content
+            finalContent: rawContent
           });
         }
 
-        // Create an assistant message in storage
+        // Clean the content: remove the input prompt if present
+        let cleanedContent = rawContent;
+        if (cleanedContent.startsWith(prompt)) {
+          cleanedContent = cleanedContent.substring(prompt.length).trim();
+        }
+
+        // Log the cleaning process
+        console.log('Prompt sent to API:', prompt);
+        console.log('Raw content from API:', rawContent);
+        console.log('Cleaned content:', cleanedContent);
+
+        // Create an assistant message in storage using the cleaned content
         const message = insertChatMessageSchema.parse({
           role: 'assistant',
-          content: content || 'I apologize, but I could not generate a response at this time.'
+          content: cleanedContent || 'I apologize, but I could not generate a response at this time.'
         });
 
         const savedMessage = await storage.createChatMessage(message);
